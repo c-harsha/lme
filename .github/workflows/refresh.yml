@@ -12,6 +12,10 @@ concurrency:
   group: refresh
   cancel-in-progress: true
 
+env:
+  # Run JS actions on Node 24 ahead of the June 2026 default switch.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
