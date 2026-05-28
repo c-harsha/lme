@@ -1,16 +1,17 @@
 """
-Fetch LME Copper daily prices (cash settlement, 3-month, LME stock) from
-westmetall.com and write a clean CSV covering all available years.
+Fetch LME daily prices (cash settlement, 3-month, LME stock) from
+westmetall.com for several metals and write one clean CSV per metal.
 
-Source pages (one per year, 2008 -> current):
+Source pages (one per metal per year, 2008 -> current):
     https://www.westmetall.com/en/markdaten.php
-        ?action=table&field=LME_Cu_cash&year=YYYY
+        ?action=table&field=LME_<code>_cash&year=YYYY
 
 Prices are USD/tonne. LME stock is in tonnes. Weekends and LME holidays
-are simply absent from the upstream table.
+are simply absent from the upstream tables.
 
-Every call to refresh() re-downloads every year, so any days missed while
-this program wasn't running are filled in automatically.
+Every call to refresh_all() re-downloads every year for every metal, so
+any days missed while this program wasn't running are filled in
+automatically.
 """
 
 import datetime as dt
@@ -22,41 +23,44 @@ import pandas as pd
 import requests
 
 FIRST_YEAR = 2008
+
+# westmetall slug -> output filename stem
+METALS = {
+    "Cu": "copper",
+    "Sn": "tin",
+    "Pb": "lead",
+    "Zn": "zinc",
+    "Al": "aluminium",
+    "Ni": "nickel",
+}
+
 BASE_URL = (
     "https://www.westmetall.com/en/markdaten.php"
-    "?action=table&field=LME_Cu_cash&year={year}"
+    "?action=table&field=LME_{code}_cash&year={year}"
 )
-USER_AGENT = "lme-copper-fetcher/1.0 (+https://github.com/)"
+USER_AGENT = "lme-fetcher/1.0 (+https://github.com/c-harsha/lme)"
 
 DATA_DIR = Path(__file__).parent / "data"
-OUTPUT = DATA_DIR / "copper.csv"
 
 
-def _fetch_year(year):
+def _fetch_year(code, year):
     r = requests.get(
-        BASE_URL.format(year=year),
+        BASE_URL.format(code=code, year=year),
         headers={"User-Agent": USER_AGENT},
         timeout=30,
     )
     r.raise_for_status()
     tables = pd.read_html(io.StringIO(r.text), thousands=",", decimal=".")
-    # The price table is the one with the cash-settlement column.
     for t in tables:
         if any("Cash-Settlement" in str(c) for c in t.columns):
             return t
-    raise RuntimeError(f"no copper table found for {year}")
+    raise RuntimeError(f"no {code} table found for {year}")
 
 
 def _clean(df):
-    df = df.rename(
-        columns={
-            "date": "date",
-            "LME Copper Cash-Settlement": "cash_settlement",
-            "LME Copper 3-month": "three_month",
-            "LME Copper stock": "lme_stock",
-        }
-    )
-    df = df[["date", "cash_settlement", "three_month", "lme_stock"]].copy()
+    # Columns vary per metal ("LME Tin Cash-Settlement" etc.) — normalise by position.
+    df = df.iloc[:, :4].copy()
+    df.columns = ["date", "cash_settlement", "three_month", "lme_stock"]
     # Repeated header rows show up as literal "date" — drop them.
     df = df[df["date"].astype(str).str.lower() != "date"]
     df["date"] = pd.to_datetime(df["date"], format="%d. %B %Y", errors="coerce")
@@ -67,12 +71,11 @@ def _clean(df):
     return df
 
 
-def refresh():
-    DATA_DIR.mkdir(exist_ok=True)
+def refresh_metal(code, name):
     this_year = dt.date.today().year
     frames = []
     for year in range(FIRST_YEAR, this_year + 1):
-        raw = _fetch_year(year)
+        raw = _fetch_year(code, year)
         frames.append(_clean(raw))
         time.sleep(1)  # be polite to westmetall.com
     out = (
@@ -81,10 +84,16 @@ def refresh():
         .sort_values("date")
         .reset_index(drop=True)
     )
-    out.to_csv(OUTPUT, index=False)
-    return OUTPUT, len(out), out["date"].iloc[-1]
+    path = DATA_DIR / f"{name}.csv"
+    out.to_csv(path, index=False)
+    return path, len(out), out["date"].iloc[-1]
+
+
+def refresh_all():
+    DATA_DIR.mkdir(exist_ok=True)
+    return {name: refresh_metal(code, name) for code, name in METALS.items()}
 
 
 if __name__ == "__main__":
-    path, n, latest = refresh()
-    print(f"wrote {n} rows to {path}, latest = {latest}")
+    for name, (path, n, latest) in refresh_all().items():
+        print(f"{name}: wrote {n} rows to {path}, latest = {latest}")
