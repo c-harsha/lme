@@ -26,6 +26,27 @@ pip install -r requirements.txt
 python fetcher.py
 ```
 
+Health pings are skipped locally unless you export `HC_PING_URL` (the base check URL);
+see [Monitoring](#monitoring).
+
+## Monitoring
+
+The refresh job pings [Healthchecks.io](https://healthchecks.io/docs/http_api/) so an
+outside monitor knows whether the daily run started, succeeded, or failed:
+
+- **start** — sent before the fetch begins (lets Healthchecks.io measure duration and detect hangs).
+- **success** — sent after all CSVs are written, with a per-metal row-count summary in the body.
+- **fail** — sent on any unhandled exception, with the traceback in the body.
+
+The ping URL is supplied through the `HC_PING_URL` GitHub Actions secret, set to the
+**base check URL** (e.g. `https://hc-ping.com/<ping-key>/lme-price-updates`); the code derives
+the `/start` and `/fail` endpoints from it. Pings are best-effort — a monitoring outage never
+changes the job's outcome — and are skipped entirely when `HC_PING_URL` is unset, so local runs
+and forks need no configuration.
+
+To rotate the ping key, rotate it in the Healthchecks.io project and update the `HC_PING_URL`
+secret; no code change is needed.
+
 ## Notes
 
 - Prices are USD per metric tonne; LME stock is tonnes.

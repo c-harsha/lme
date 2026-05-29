@@ -16,11 +16,15 @@ automatically.
 
 import datetime as dt
 import io
+import logging
 import time
+import traceback
 from pathlib import Path
 
 import pandas as pd
 import requests
+
+import healthcheck
 
 FIRST_YEAR = 2008
 
@@ -95,5 +99,19 @@ def refresh_all():
 
 
 if __name__ == "__main__":
-    for name, (path, n, latest) in refresh_all().items():
-        print(f"{name}: wrote {n} rows to {path}, latest = {latest}")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    healthcheck.ping_start()
+    try:
+        results = refresh_all()
+        summary = "\n".join(
+            f"{name}: wrote {n} rows to {path}, latest = {latest}"
+            for name, (path, n, latest) in results.items()
+        )
+        print(summary)
+        healthcheck.ping_success(summary)
+    except Exception:
+        tb = traceback.format_exc()
+        print(tb)
+        healthcheck.ping_fail(tb)
+        raise  # preserve the non-zero exit code so the workflow goes red too

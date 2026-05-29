@@ -32,6 +32,8 @@ jobs:
       - run: pip install -r requirements.txt
 
       - run: python fetcher.py
+        env:
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
 
       - name: Commit changes
         run: |
