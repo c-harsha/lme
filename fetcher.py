@@ -17,6 +17,7 @@ automatically.
 import datetime as dt
 import io
 import logging
+import random
 import time
 import traceback
 from pathlib import Path
@@ -31,6 +32,12 @@ FIRST_YEAR = 2008
 # Retry transient network failures to westmetall.com before giving up.
 MAX_RETRIES = 4
 RETRY_BACKOFF = 5  # seconds; multiplied by attempt number
+
+# If the whole refresh fails (e.g. westmetall.com is down for a while), wait
+# a couple of hours and try the entire run again before giving up for good.
+LONG_RETRIES = 1
+LONG_RETRY_MIN = 2 * 3600  # seconds
+LONG_RETRY_MAX = 3 * 3600  # seconds
 
 # westmetall slug -> output filename stem
 METALS = {
@@ -117,16 +124,26 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     healthcheck.ping_start()
-    try:
-        results = refresh_all()
-        summary = "\n".join(
-            f"{name}: wrote {n} rows to {path}, latest = {latest}"
-            for name, (path, n, latest) in results.items()
-        )
-        print(summary)
-        healthcheck.ping_success(summary)
-    except Exception:
-        tb = traceback.format_exc()
-        print(tb)
-        healthcheck.ping_fail(tb)
-        raise  # preserve the non-zero exit code so the workflow goes red too
+    for attempt in range(1, LONG_RETRIES + 2):
+        try:
+            results = refresh_all()
+            summary = "\n".join(
+                f"{name}: wrote {n} rows to {path}, latest = {latest}"
+                for name, (path, n, latest) in results.items()
+            )
+            print(summary)
+            healthcheck.ping_success(summary)
+            break
+        except Exception:
+            tb = traceback.format_exc()
+            print(tb)
+            if attempt > LONG_RETRIES:
+                # Out of long retries — fail for good and go red.
+                healthcheck.ping_fail(tb)
+                raise  # preserve the non-zero exit code so the workflow goes red too
+            wait = random.randint(LONG_RETRY_MIN, LONG_RETRY_MAX)
+            logging.warning(
+                "refresh failed (attempt %d/%d) — retrying in %d min",
+                attempt, LONG_RETRIES + 1, wait // 60,
+            )
+            time.sleep(wait)
