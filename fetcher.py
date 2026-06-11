@@ -28,6 +28,10 @@ import healthcheck
 
 FIRST_YEAR = 2008
 
+# Retry transient network failures to westmetall.com before giving up.
+MAX_RETRIES = 4
+RETRY_BACKOFF = 5  # seconds; multiplied by attempt number
+
 # westmetall slug -> output filename stem
 METALS = {
     "Cu": "copper",
@@ -48,12 +52,23 @@ DATA_DIR = Path(__file__).parent / "data"
 
 
 def _fetch_year(code, year):
-    r = requests.get(
-        BASE_URL.format(code=code, year=year),
-        headers={"User-Agent": USER_AGENT},
-        timeout=30,
-    )
-    r.raise_for_status()
+    url = BASE_URL.format(code=code, year=year)
+    # westmetall.com occasionally times out or returns a 5xx; retry with
+    # backoff so one transient hiccup doesn't fail the whole refresh.
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
+            r.raise_for_status()
+            break
+        except requests.RequestException as exc:
+            if attempt == MAX_RETRIES:
+                raise
+            wait = RETRY_BACKOFF * attempt
+            logging.warning(
+                "fetch %s %s failed (attempt %d/%d): %s — retrying in %ds",
+                code, year, attempt, MAX_RETRIES, exc, wait,
+            )
+            time.sleep(wait)
     tables = pd.read_html(io.StringIO(r.text), thousands=",", decimal=".")
     for t in tables:
         if any("Cash-Settlement" in str(c) for c in t.columns):
