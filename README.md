@@ -51,5 +51,6 @@ secret; no code change is needed.
 
 - Prices are USD per metric tonne; LME stock is tonnes.
 - Weekends and LME holidays are absent from the upstream tables and so from the CSVs.
-- `fetcher.py` re-downloads every year for every metal on each run, so missed days self-heal.
-- The cron runs at 18:00 UTC, after the LME official settlement.
+- `fetcher.py` fetches incrementally — only from the year of each CSV's last date onward
+  (full rebuild if a CSV is missing) — so missed days self-heal without re-downloading 2008+.
+- The cron runs at 20:00 UTC, ~3 hours after the LME official settlement.
