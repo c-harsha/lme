@@ -9,9 +9,11 @@ Source pages (one per metal per year, 2008 -> current):
 Prices are USD/tonne. LME stock is in tonnes. Weekends and LME holidays
 are simply absent from the upstream tables.
 
-Every call to refresh_all() re-downloads every year for every metal, so
-any days missed while this program wasn't running are filled in
-automatically.
+Historical years never change, so refresh_all() only re-downloads from the
+year of the last date already in each CSV onward. Any days missed while
+this program wasn't running are still filled in automatically, but a normal
+run only fetches the current (and possibly previous) year instead of every
+year back to 2008. If a CSV is missing or unreadable it is rebuilt in full.
 """
 
 import datetime as dt
@@ -97,20 +99,45 @@ def _clean(df):
     return df
 
 
+def _load_existing(path):
+    """Return the existing CSV as a DataFrame, or None if missing/unusable."""
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path, dtype={"date": str})
+    except Exception as exc:  # corrupt/empty file — rebuild from scratch
+        logging.warning("could not read %s (%s) — rebuilding in full", path, exc)
+        return None
+    if df.empty or "date" not in df.columns:
+        return None
+    return df
+
+
 def refresh_metal(code, name):
     this_year = dt.date.today().year
-    frames = []
-    for year in range(FIRST_YEAR, this_year + 1):
+    path = DATA_DIR / f"{name}.csv"
+
+    existing = _load_existing(path)
+    if existing is not None:
+        # Historical years are immutable, so only re-fetch from the year of
+        # the last stored date onward (refilling any recently missed days).
+        start_year = int(existing["date"].max()[:4])
+    else:
+        start_year = FIRST_YEAR
+
+    frames = [existing] if existing is not None else []
+    for year in range(start_year, this_year + 1):
         raw = _fetch_year(code, year)
         frames.append(_clean(raw))
         time.sleep(1)  # be polite to westmetall.com
     out = (
+        # Freshly fetched rows come after the existing ones, so keep="last"
+        # lets any upstream corrections for overlapping dates win.
         pd.concat(frames, ignore_index=True)
-        .drop_duplicates(subset="date")
+        .drop_duplicates(subset="date", keep="last")
         .sort_values("date")
         .reset_index(drop=True)
     )
-    path = DATA_DIR / f"{name}.csv"
     out.to_csv(path, index=False)
     return path, len(out), out["date"].iloc[-1]
 
