@@ -2,8 +2,10 @@ name: refresh
 
 on:
   schedule:
-    # 18:00 UTC daily — LME official prices for the day are settled by ~17:00 London time.
-    - cron: "0 18 * * *"
+    # 20:00 UTC daily — ~3 hours after LME close (official prices settle by
+    # ~17:00 London). Cron is UTC-only, so this is exactly 3h after close in
+    # winter (GMT) and 4h after in summer (BST); always >=3h post-close.
+    - cron: "0 20 * * *"
   push:
     branches: [main]
   workflow_dispatch:
