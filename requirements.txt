@@ -1,3 +1,7 @@
-pandas
-requests
-lxml
+# Pinned to known-good versions so an upstream release can't break the daily job.
+# pandas allows patch releases only (minor releases can change parsing/dtypes);
+# the others allow minor releases within the same major version.
+pandas~=3.0.5
+requests~=2.34
+urllib3~=2.8
+lxml~=6.1

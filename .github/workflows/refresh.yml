@@ -8,11 +8,19 @@ on:
     - cron: "0 20 * * *"
   push:
     branches: [main]
+    # Only re-run on changes that affect the fetch, not on docs or data commits.
+    paths:
+      - fetcher.py
+      - healthcheck.py
+      - requirements.txt
+      - .github/workflows/refresh.yml
   workflow_dispatch:
 
 concurrency:
   group: refresh
-  cancel-in-progress: true
+  # Queue new runs instead of cancelling: a failed run may be sleeping 2-3h
+  # before its retry, and cancelling it would skip the Healthchecks.io fail ping.
+  cancel-in-progress: false
 
 jobs:
   refresh:

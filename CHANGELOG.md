@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- The refresh workflow only runs on pushes that touch the fetch code, its
+  dependencies or the workflow itself, and queues overlapping runs instead of
+  cancelling them (a cancelled run never sent its fail ping).
+- `fetcher.py` sends the Healthchecks.io **start** ping before each attempt, so the
+  2–3 hour wait before a retry no longer trips the check's grace time.
+- Fail pings now keep the end of the traceback (where the exception is) when
+  truncating, instead of the beginning.
+- `fetcher.py` checks that the upstream columns are date, cash, 3-month, stock in
+  that order and fails instead of writing mislabelled data.
+- Pinned `requirements.txt` to known-good versions and added `urllib3`, which
+  `healthcheck.py` imports directly.
 - `refresh_metal()` now fetches incrementally: it reads each existing CSV and only
   re-downloads from the year of its last stored date onward, instead of every year
   back to 2008. Missing or unreadable CSVs are rebuilt in full, and overlapping

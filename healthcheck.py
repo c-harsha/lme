@@ -53,7 +53,8 @@ def _ping(suffix="", body=""):
     url = base.rstrip("/") + suffix
     try:
         with _session() as s:
-            s.post(url, data=body[:_MAX_BODY].encode("utf-8"), timeout=_TIMEOUT)
+            # Keep the tail: a traceback's most useful line (the exception) is last.
+            s.post(url, data=body[-_MAX_BODY:].encode("utf-8"), timeout=_TIMEOUT)
     except requests.RequestException as exc:
         # Never propagate: monitoring must not break the monitored job.
         log.warning("health ping %r failed: %s", suffix or "success", exc)

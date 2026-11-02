@@ -85,8 +85,24 @@ def _fetch_year(code, year):
     raise RuntimeError(f"no {code} table found for {year}")
 
 
+def _check_layout(columns):
+    """Fail loudly if the upstream columns aren't date, cash, 3-month, stock.
+
+    Columns are renamed by position, so a reordered or inserted column would
+    otherwise be written silently under the wrong name.
+    """
+    names = [str(c).lower() for c in columns[:4]]
+    expected = [("date",), ("cash",), ("3", "month"), ("stock",)]
+    if len(names) < 4 or not all(
+        all(word in name for word in words) for name, words in zip(names, expected)
+    ):
+        raise RuntimeError(f"unexpected upstream table layout: {list(columns)}")
+
+
 def _clean(df):
-    # Columns vary per metal ("LME Tin Cash-Settlement" etc.) — normalise by position.
+    # Columns vary per metal ("LME Tin Cash-Settlement" etc.) — check the
+    # order, then normalise names by position.
+    _check_layout(df.columns)
     df = df.iloc[:, :4].copy()
     df.columns = ["date", "cash_settlement", "three_month", "lme_stock"]
     # Repeated header rows show up as literal "date" — drop them.
@@ -150,8 +166,10 @@ def refresh_all():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    healthcheck.ping_start()
     for attempt in range(1, LONG_RETRIES + 2):
+        # Ping start on every attempt so Healthchecks.io times each attempt
+        # separately and the 2-3h wait between attempts doesn't trip its alert.
+        healthcheck.ping_start()
         try:
             results = refresh_all()
             summary = "\n".join(
