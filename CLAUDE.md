@@ -52,8 +52,14 @@ picks them up.
    gh auth login --git-protocol https --web
    ```
 
-   To use SSH instead (the old machine did): create a key with `ssh-keygen -t ed25519`, add it
-   with `gh ssh-key add $HOME\.ssh\id_ed25519.pub --title "<machine name>"`, and run
+   `gh auth status` should then list the `repo` and `workflow` scopes. Pushing a change to
+   `.github/workflows/refresh.yml` over HTTPS is rejected without `workflow`; add it with
+   `gh auth refresh -h github.com -s workflow`.
+
+   To use SSH instead (the old machine did): create a key with `ssh-keygen -t ed25519`, run
+   `gh auth refresh -h github.com -s admin:public_key` (an HTTPS login doesn't grant the
+   scope `gh ssh-key add` needs), add the key with
+   `gh ssh-key add $HOME\.ssh\id_ed25519.pub --title "<machine name>"`, and run
    `gh config set git_protocol ssh` before cloning.
 
 3. **Set your Git identity** to the same name and email as the old machine, so commits stay
@@ -84,6 +90,10 @@ picks them up.
    .venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
+   Every pinned package has a prebuilt `win_amd64` wheel for Python 3.12 (checked
+   2026-11-03), so nothing should compile. If pip starts building from source, see
+   [Windows troubleshooting](#windows-troubleshooting).
+
 6. **Check that it works** with the commands under [Commands](#commands): compile, the
    no-op ping check, the live parsing check, and `gh run list --limit 3`. Afterwards
    `git status` should be clean.
@@ -92,18 +102,30 @@ picks them up.
    - `.claude/settings.local.json` is git-ignored and per machine. The old one only allowed
      some `python3`, `git` and `gh` commands; approve them again as prompts come up.
    - Claude Code's project memory for this repo on the old machine was empty.
+   - User-level settings in `~/.claude/` (model, plugins, status line) are per machine too,
+     and this repo doesn't need any of them. The old status line ran
+     `bash ~/.claude/statusline-command.sh`, which needs `jq` and prints a Linux-style
+     `user@host:dir` prompt. On Windows, set up a new one with `/statusline` instead of copying it.
 
 8. **Leave secrets on GitHub.** `HC_PING_URL` exists only as a GitHub Actions secret
    (`gh secret list` shows it). Don't copy it to the new machine or into any file.
 
 ### Retiring the old machine
 
+The old machine is the Debian VM `debian-hyperv` (checkout at `~/lme`). As of 2026-11-03
+it had no unpushed commits, stashes or other branches, and no `.venv`.
+
 1. In the old checkout, make sure nothing is left behind: `git status` is clean, and
    `git log origin/main..HEAD` and `git stash list` print nothing.
-2. Remove its SSH key from GitHub: `gh ssh-key list`, then `gh ssh-key delete <id>` (or
-   GitHub → Settings → SSH and GPG keys).
-3. Sign out with `gh auth logout`. If Git there uses `credential.helper store`, delete
-   `~/.git-credentials` (it holds a token in plain text) and revoke that token on GitHub.
+2. Once the new machine can push, remove the old machine's SSH key from GitHub. It's the
+   key titled `debian-hyperv` (ID `148445535`), and you can find it with `gh ssh-key list`.
+   Delete it with `gh ssh-key delete 148445535`, or under GitHub → Settings → SSH and GPG
+   keys. Leave the `Bitwarden Docker Github` key alone; it belongs to something else.
+3. Sign out with `gh auth logout`.
+4. The old machine's `~/.git-credentials` (`credential.helper store`) holds a plain-text
+   token for **gitlab.com**, not GitHub; this repo never used it. If that machine is being
+   wiped, delete the file and revoke the token on GitLab (User settings → Access tokens).
+   Otherwise leave it, since other GitLab checkouts there may need it.
 
 ## Commands
 
