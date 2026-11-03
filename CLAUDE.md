@@ -57,16 +57,15 @@ picks them up.
    `gh config set git_protocol ssh` before cloning.
 
 3. **Set your Git identity** to the same name and email as the old machine, so commits stay
-   linked to the GitHub account (`git config --global --list` on the old machine shows them).
-   Then check line-ending handling:
+   linked to the GitHub account (`git config --global --list` on the old machine shows them):
 
    ```powershell
    git config --global user.name  "<same as old machine>"
    git config --global user.email "<same as old machine>"
-   git config --global core.autocrlf    # should print: true (the Git for Windows default)
    ```
 
-   If it prints anything else, run `git config --global core.autocrlf true`.
+   Leave `core.autocrlf` at the Git for Windows default (`true`), but don't set it to `input`.
+   `.gitattributes` handles line endings; see [Line endings](#line-endings).
 
 4. **Clone** into a folder OneDrive doesn't sync. Desktop and Documents often are synced, and
    OneDrive can lock files inside `.git`. For example:
@@ -154,14 +153,19 @@ The closing `'@` must be at the very start of its line. Don't pass multi-line co
 
 ## Line endings
 
-The repo stores LF and has no `.gitattributes`. On Windows, `DataFrame.to_csv()` writes CRLF
-(its default is `os.linesep`), so a local `fetcher.py` run rewrites every line of every CSV.
+`.gitattributes` keeps every text file stored as LF in the repo, whatever `core.autocrlf` is
+set to. Checkouts use the platform's line endings: CRLF on Windows, LF on Linux and in CI.
 
-- With `core.autocrlf=true` (the Git for Windows default), Git converts CRLF back to LF when
-  committing, so `git diff` shows only real data changes. "LF will be replaced by CRLF"
-  warnings are harmless.
-- If `git diff --stat data/` shows every line of every CSV changed, line endings are the
-  cause. Don't commit that: run `git restore data/` and fix `core.autocrlf`.
+- `DataFrame.to_csv()` also writes the platform's line endings (its default is `os.linesep`),
+  so after a local `fetcher.py` run, `git status` and `git diff` show only real data changes.
+  Commits from Windows are converted back to LF.
+- Don't add `eol=lf` to `.gitattributes`. It makes Windows checkouts LF while pandas still
+  writes CRLF, so `git status` would list every CSV as modified after each local run.
+- `core.autocrlf=input` causes the same thing: every CSV listed as modified while `git diff`
+  is empty. `git add data/` clears it; set `core.autocrlf` back to `true` to stop it.
+- If `git diff --stat data/` ever shows every line of every CSV changed, check that
+  `.gitattributes` is present and unchanged. `git check-attr text data/copper.csv` should
+  print `text: set`. Don't commit that diff: run `git restore data/`.
 - There's rarely a reason to commit CSVs from a local run, since the bot commits data daily.
   Discard local data changes with `git restore data/`.
 

@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   close) so official prices are reliably settled before the run.
 
 ### Added
+- `.gitattributes` keeps text files, including the CSVs, stored with LF on every
+  platform. CSVs written on Windows (CRLF) are committed as LF, so diffs show only
+  real data changes.
 - Health monitoring via [Healthchecks.io](https://healthchecks.io/docs/http_api/):
   the refresh job sends **start**, **success**, and **fail** pings around each run.
   - New `healthcheck.py` module — best-effort pings with bounded retries, a request

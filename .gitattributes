@@ -1,0 +1,8 @@
+# The repo stores text files with LF on every platform, whatever core.autocrlf is set
+# to. Checkouts use the platform's line endings: CRLF on Windows, LF on Linux and CI.
+* text=auto
+
+# Generated data. pandas writes the platform's line endings (to_csv uses os.linesep),
+# which match the checkout, so a local run only shows real data changes. Git converts
+# them to LF on commit.
+data/*.csv text
