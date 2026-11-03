@@ -10,8 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The refresh workflow only runs on pushes that touch the fetch code, its
   dependencies or the workflow itself, and queues overlapping runs instead of
   cancelling them (a cancelled run never sent its fail ping).
-- `fetcher.py` sends the Healthchecks.io **start** ping before each attempt, so the
-  2–3 hour wait before a retry no longer trips the check's grace time.
+- `fetcher.py` sends the Healthchecks.io **start** ping before each attempt, so each
+  attempt is timed on its own. No ping is sent during the 2–3 hour wait before a
+  retry, so a grace time under ~3 hours still raises a down alert during that wait.
 - Fail pings now keep the end of the traceback (where the exception is) when
   truncating, instead of the beginning.
 - `fetcher.py` checks that the upstream columns are date, cash, 3-month, stock in

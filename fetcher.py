@@ -168,7 +168,8 @@ if __name__ == "__main__":
 
     for attempt in range(1, LONG_RETRIES + 2):
         # Ping start on every attempt so Healthchecks.io times each attempt
-        # separately and the 2-3h wait between attempts doesn't trip its alert.
+        # separately. Nothing is sent during the 2-3h wait, so a grace time
+        # under ~3h still alerts while waiting (see README "Monitoring").
         healthcheck.ping_start()
         try:
             results = refresh_all()
